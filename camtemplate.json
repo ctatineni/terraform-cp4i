@@ -9,7 +9,7 @@
     "manifest": {
         "template_type": "Terraform",
         "template_format": "HCL",
-        "template_provider": "VMware vSphere,AWS",
+        "template_provider": "VMware vSphere",
         "template": {
             "templateData": "",
             "templateVariables": "",
@@ -24,7 +24,7 @@
     },
     "metadata": {
         "displayName": "CP4I Installation",
-        "providerDisplayName": "VMware vSphere,AWS",
+        "providerDisplayName": "VMware vSphere",
         "longDescription": "This template will deploy an enterprise, HA-ready version of CP4I. This template uses Terraform 0.12.x engine.",
         "bullets": [{
                 "title": "Clouds",
