@@ -2,7 +2,7 @@ variable "helper" {
   type = map(string)
   default = {
     username       = "sysadmin"
-    password       = "Passw0rd!"
+    password       = ""
   }
 }
 
