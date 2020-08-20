@@ -1,7 +1,9 @@
+#Task 1 start
 export KUBECONFIG=${HOME}/installer/auth/kubeconfig
 KEY=$1
 oc new-project cp4i
 oc create secret docker-registry ibm-entitlement-key --docker-server=cp.icr.io --docker-username=cp --docker-password=$KEY --docker-email=chandhubabu.thathineni@ibm.com -n cp4i
+sleep 1m
 
 cat <<EOF | oc create -f -
 apiVersion: operators.coreos.com/v1
@@ -31,25 +33,29 @@ spec:
   sourceNamespace: openshift-marketplace
 EOF
 
-
-
-# Platform Navigator
+sleep 1m
 
 cat <<EOF | oc create -f -
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
-  name: ibm-integration-platform-navigator-subscription
+  generation: 1
+  name: ibm-cp-integration
   namespace: cp4i
 spec:
-  channel: v4.0
-  name: ibm-integration-platform-navigator
+  channel: v1.0
+  installPlanApproval: Automatic
+  name: ibm-cp-integration
   source: ibm-operator-catalog
   sourceNamespace: openshift-marketplace
+  startingCSV: ibm-cp-integration.v1.0.0
 EOF
-
 sleep 2m
 
+# Task1 End
+
+# Task2 start
+# Platform Navigator
 cat <<EOF | oc create -f -
 apiVersion: integration.ibm.com/v1beta1
 kind: PlatformNavigator
@@ -64,24 +70,11 @@ spec:
     version: 2020.2.1
 EOF
 
+sleep 10m
+
+# Task2 end
+
 # Operations Dashboard
-
-cat <<EOF | oc create -f -
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: ibm-integration-operations-dashboard
-  namespace: cp4i
-spec:
-  channel: v1.0
-  installPlanApproval: Automatic
-  name: ibm-integration-operations-dashboard
-  source: ibm-operator-catalog
-  sourceNamespace: openshift-marketplace
-  startingCSV: ibm-integration-operations-dashboard.v1.0.0
-EOF
-
-sleep 2m
 
 cat <<EOF | oc create -f -
 apiVersion: integration.ibm.com/v1beta1
@@ -225,31 +218,18 @@ spec:
   version: 2020.2.1-0
 EOF
 
+oc get deployment router-default -n openshift-ingress -o jsonpath='{.spec.template.spec.hostNetwork}'
+
+oc label namespace default network.openshift.io/policy-group=ingress
+
 # APP Connect
-
-cat <<EOF | oc create -f -
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: ibm-appconnect
-  namespace: cp4i
-spec:
-  channel: v1.0
-  installPlanApproval: Automatic
-  name: ibm-appconnect
-  source: ibm-operator-catalog
-  sourceNamespace: openshift-marketplace
-  startingCSV: ibm-appconnect.v1.0.1
-EOF
-
-sleep 2m
 
 cat <<EOF | oc create -f -
 apiVersion: appconnect.ibm.com/v1beta1
 kind: Dashboard
 metadata:
-  name: db-quickstart
   namespace: cp4i
+  name: appc-prod
 spec:
   license:
     accept: true
@@ -257,12 +237,11 @@ spec:
     use: CloudPakForIntegrationNonProduction
   replicas: 1
   storage:
-    class: 'csi-cephfs'
+    class: csi-cephfs
     type: persistent-claim
   version: 11.0.0
-EOF
 
-sleep 2m
+EOF
 
 cat <<EOF | oc create -f -
 apiVersion: appconnect.ibm.com/v1beta1
@@ -279,13 +258,11 @@ spec:
   version: 11.0.0
 EOF
 
-sleep 2m
-
 cat <<EOF | oc create -f -
 apiVersion: appconnect.ibm.com/v1beta1
 kind: DesignerAuthoring
 metadata:
-  name: des-mapast
+  name: appc-designer
   namespace: cp4i
 spec:
   couchdb:
@@ -308,4 +285,140 @@ spec:
   replicas: 3
   switchServer:
     name: default
+EOF
+
+# IBM MQ
+
+cat <<EOF | oc create -f -
+apiVersion: mq.ibm.com/v1beta1
+kind: QueueManager
+metadata:
+  name: mq-prod
+  namespace: cp4i
+spec:
+  license:
+    accept: true
+    license: L-RJON-BN7PN3
+    use: NonProduction
+    metric: VirtualProcessorCore
+  queueManager:
+    name: QUICKSTART
+    storage:
+      queueManager:
+        type: ephemeral
+    availability:
+      type: SingleInstance
+  template:
+    pod:
+      containers:
+        - env:
+            - name: MQSNOAUT
+              value: 'yes'
+          name: qmgr
+  version: 9.1.5.0-r2
+  web:
+    enabled: true
+  tracing:
+    enabled: true
+    namespace: cp4i
+EOF
+
+# Event streams
+
+cat <<EOF | oc create -f -
+apiVersion: eventstreams.ibm.com/v1beta1
+kind: EventStreams
+metadata:
+  name: ess-prod
+  namespace: cp4i
+spec:
+  version: 10.0.0
+  license:
+    accept: true
+    use: CloudPakForIntegrationProduction
+  adminApi: {}
+  adminUI: {}
+  collector: {}
+  restProducer: {}
+  schemaRegistry:
+    storage:
+      class: rook-ceph-block
+      size: 1Gi
+      type: persistent-claim
+  strimziOverrides:
+    kafka:
+      replicas: 3
+      authorization:
+        type: runas
+      config:
+        inter.broker.protocol.version: '2.5'
+        interceptor.class.names: com.ibm.eventstreams.interceptors.metrics.ProducerMetricsInterceptor
+        log.cleaner.threads: 6
+        log.message.format.version: '2.5'
+        num.io.threads: 24
+        num.network.threads: 9
+        num.replica.fetchers: 3
+        offsets.topic.replication.factor: 3
+      listeners:
+        external:
+          authentication:
+            type: scram-sha-512
+          type: route
+        tls:
+          authentication:
+            type: tls
+      metrics: {}
+      resources:
+        limits:
+          cpu: 4000m
+          memory: 8096Mi
+        requests:
+          cpu: 4000m
+          memory: 8096Mi
+      storage:
+        class: rook-ceph-block
+        size: 10Gi
+        type: persistent-claim
+    zookeeper:
+      replicas: 3
+      metrics: {}
+      storage:
+        class: rook-ceph-block
+        size: 4Gi
+        type: persistent-claim
+EOF
+
+# API Connect
+
+cat <<EOF | oc create -f -
+apiVersion: apiconnect.ibm.com/v1beta1
+kind: APIConnectCluster
+metadata:
+  name: apic-dev
+  namespace: cp4i
+spec:
+  appVersion: 10.0.0.0
+  license:
+    accept: true
+    use: nonproduction
+  profile: n3xc4.m16
+EOF
+
+# Asset Repo
+
+cat <<EOF | oc create -f -
+apiVersion: integration.ibm.com/v1beta1
+kind: AssetRepository
+metadata:
+  name: assetrepo-prod
+  namespace: cp4i
+spec:
+  license:
+    accept: true
+  storage:
+    assetDataVolume:
+      class: csi-cephfs
+    couchVolume:
+      class: csi-cephfs
+  version: 2020.2.1-0
 EOF
