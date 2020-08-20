@@ -15,7 +15,6 @@ resource "null_resource" "add_catalogs" {
     inline = [
       "export KUBECONFIG=~/installer/auth/kubeconfig",
       "sudo chmod u+x /tmp/cp4i_scripts/*.sh",
-      "/tmp/cp4i_scripts/catalogs.sh",
       "/tmp/cp4i_scripts/installcp4i.sh \"${var.key}\"",
     ] 
   }
